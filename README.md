@@ -28,3 +28,49 @@ Rất nhiều lập trình viên mới hay nhầm lẫn hai khái niệm này:
     *   Lần sau gửi request, Client đính kèm Token này vào `Header` (thường là `Authorization: Bearer <token>`).
     *   Server không cần tìm trong bộ nhớ nữa, chỉ cần dùng khóa bí mật để giải mã và kiểm tra chữ ký của Token là biết bạn là ai và có quyền gì.
 *   **Ưu điểm:** Cực kỳ phù hợp cho Web API, các ứng dụng Mobile, và hệ thống Microservices vì nó hoàn toàn "Stateless" (Server không cần tốn RAM để nhớ người dùng).
+
+---
+
+# Xác thực và Phân quyền dựa trên Token (Token-based Authentication)
+Giải thích về cơ chế xác thực (Authentication) và phân quyền (Authorization) sử dụng **Token** trong việc xây dựng Web API, thay thế cho cơ chế Cookie/Session truyền thống của các ứng dụng web thông thường.
+
+Nếu người dùng hoặc ứng dụng gọi một API yêu cầu xác thực mà không cung cấp Token hoặc Token không hợp lệ, máy chủ (server) mặc định sẽ trả về lỗi **401 (Unauthorized)**.
+
+Dưới đây là các khái niệm và thành phần chính khi làm việc với Token trong hệ thống API:
+
+### 1. Cách thức gửi Token qua HTTP Header
+Khác với Cookie được trình duyệt tự động lưu và đính kèm, Token khi gọi Web API phải được đính kèm thủ công vào mỗi lời gọi (HTTP Request) lên máy chủ.
+* Gửi thông qua header có tên là `Authorization`.
+* **Cú pháp quy ước:** `Authorization: <Scheme> <Token_Value>`
+* **Ví dụ thực tế phổ biến nhất:** `Authorization: Bearer eyJhbGciOi...` 
+  * `Bearer` là từ khóa chỉ định việc sử dụng JSON Web Token.
+  * Cấu trúc là: Từ khóa Bearer -> khoảng trắng -> chuỗi ký tự Token.
+* Việc gọi API với Token có tính độc lập hoàn toàn (stateless). Server sẽ xác thực trực tiếp trên từng request mà không cần lưu trữ hay liên kết chúng thông qua session.
+
+### 2. Cấu trúc của JSON Web Token (JWT)
+JWT là một chuỗi ký tự được mã hóa dạng Base64, bao gồm 3 phần chính được ngăn cách bởi dấu chấm (`.`):
+* **Header:** Chứa thông tin cơ bản để mô tả về Token (loại token, thuật toán dùng để ký).
+* **Payload:** Chứa nội dung dữ liệu thực tế mang theo, mỗi trường dữ liệu bên trong được gọi là một **Claim** (cặp key-value). 
+  * Các Claim thường chứa: ID người dùng, đơn vị cấp phát (Issuer), Quyền hạn (Roles), Thời gian hết hạn,...
+  * *Lưu ý:* Việc phân quyền ứng dụng thông qua việc đọc các dữ liệu (Claim) có sẵn bên trong Payload này được gọi là **Claim-based Authorization**.
+* **Signature (Chữ ký):** Phần này được dùng để server đối chiếu, nhằm xác định Token có thực sự được cấp phát bởi máy chủ gốc hay không, và đảm bảo dữ liệu ở phần Payload không bị kẻ gian giả mạo hoặc thay đổi.
+
+### 3. Phân loại Token và Cơ chế cấp mới
+Token bản chất là tự thân mang đầy đủ thông tin (self-contained). Khi server nhận được Token, nó không cần phải gọi lại cơ sở dữ liệu để tra cứu. Do đó, Token **bắt buộc phải có thời gian hết hạn** để ngăn chặn việc Token bị dùng vĩnh viễn trong trường hợp bị lộ.
+* **Access Token:** 
+  * Dùng để đính kèm vào các API request hàng ngày để lấy dữ liệu.
+  * Thường có thời gian sống (lifespan) rất ngắn (ví dụ: 5 - 10 phút) để đảm bảo an toàn.
+* **Refresh Token:**
+  * Dùng để xin cấp lại một *Access Token* mới khi nó bị hết hạn, nhờ đó người dùng không phải khó chịu vì phải gõ username/password đăng nhập lại liên tục.
+  * Có thời gian sống dài hơn rất nhiều (vài ngày, vài tuần hoặc cả tháng).
+  * *Tính năng nâng cao:* Nhiều hệ thống áp dụng cơ chế **Rotating Refresh Token**. Nghĩa là mỗi lần dùng Refresh Token cũ để xin Access Token mới, server cũng sẽ cấp kèm một Refresh Token mới toanh và hủy bỏ token cũ để tăng cường bảo mật.
+
+### 4. Giao thức OAuth 2.0 và OpenID Connect
+Đây là các tiêu chuẩn (protocol) định hình cách các hệ thống cấp phát và xác thực Token an toàn giữa nhiều bên với nhau.
+* **OAuth 2.0:** 
+  * Là một giao thức ủy quyền. Nó cho phép một ứng dụng bên thứ ba (Ví dụ: Duolingo) được phép thay mặt người dùng truy cập vào tài nguyên trên một hệ thống khác (Ví dụ: Facebook) mà **không cần người dùng phải giao Username/Password** cho bên thứ ba.
+  * OAuth 2.0 chỉ tập trung vào việc cấp quyền (Authorization) thông qua việc sinh ra *Access Token* và *Refresh Token*. Nó không quan tâm người dùng đó cụ thể là ai.
+* **OpenID Connect (OIDC):**
+  * Là một bộ tiêu chuẩn mở rộng được xây dựng đè lên trên nền tảng của OAuth 2.0.
+  * Nó bổ sung thêm tính năng định danh người dùng (Authentication).
+  * OIDC sinh ra thêm một loại token thứ 3 được gọi là **ID Token**. Token này chứa các thông tin hồ sơ cơ bản (họ tên, email, ảnh đại diện...) để ứng dụng bên thứ ba có thể đọc và biết chính xác người đang đăng nhập là ai.
