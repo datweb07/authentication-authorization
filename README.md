@@ -74,3 +74,43 @@ Token bản chất là tự thân mang đầy đủ thông tin (self-contained).
   * Là một bộ tiêu chuẩn mở rộng được xây dựng đè lên trên nền tảng của OAuth 2.0.
   * Nó bổ sung thêm tính năng định danh người dùng (Authentication).
   * OIDC sinh ra thêm một loại token thứ 3 được gọi là **ID Token**. Token này chứa các thông tin hồ sơ cơ bản (họ tên, email, ảnh đại diện...) để ứng dụng bên thứ ba có thể đọc và biết chính xác người đang đăng nhập là ai.
+
+---
+
+# Giải thích luồng OAuth2 qua ví dụ thực tế
+
+Ví dụ thực tế: **Bạn (User)** đang muốn đăng nhập vào **FPT Shop (Client)** thông qua trung gian quản lý là **Supabase (Auth)** liên kết với tài khoản **Google**.
+
+### 1. Các thành phần tham gia (Actors)
+
+* **User:** Chính là bạn đang ngồi trước màn hình máy tính/điện thoại.
+* **Client:** Trình duyệt đang mở trang web **FPT Shop**.
+* **Auth (Authorization server):** **Supabase**, đóng vai trò là hệ thống backend quản lý việc đăng nhập cho FPT Shop.
+* **Google (Resource Server)**
+
+### 2. Giải thích luồng hoạt động (Flow)
+
+#### **Bước 1: Bắt đầu yêu cầu** *(Từ Client -> Auth)*
+* **Thực tế:** Bạn vào trang web FPT Shop và bấm vào nút **"Đăng nhập bằng Google"**.
+* **Hệ thống:** Trình duyệt FPT Shop (Client) gửi một yêu cầu đến máy chủ Supabase (Auth), báo rằng: *"Có khách hàng muốn đăng nhập, hãy chuẩn bị luồng xác thực qua Google giúp tôi"*.
+
+#### **Bước 2: Yêu cầu người dùng ủy quyền** *(Từ Auth -> User)*
+* **Thực tế:** Màn hình của bạn bị chuyển hướng (redirect) rời khỏi FPT Shop, chuyển sang trang đăng nhập của Google. Bạn sẽ thấy thông báo: *"FPT Shop muốn truy cập vào tên và địa chỉ email của bạn"*.
+* **Hệ thống:** Supabase/Google hiển thị giao diện đăng nhập và màn hình xin phép (Consent screen) cho bạn.
+
+#### **Bước 3: Người dùng đồng ý** *(Từ User -> Auth)*
+* **Thực tế:** Bạn nhập tài khoản, mật khẩu Gmail và bấm nút **"Cho phép" (Allow)**.
+* **Hệ thống:** Bạn gửi trực tiếp sự đồng ý của mình cho Google và Supabase. 
+    > **Lưu ý quan trọng:** FPT Shop hoàn toàn không biết mật khẩu của bạn, họ chỉ đứng ngoài chờ.
+
+#### **Bước 4: Trả mã xác nhận về cho Client** *(Từ Auth -> Client)*
+* **Thực tế:** Màn hình load một chút, sau đó bạn được tự động chuyển hướng quay trở lại trang web FPT Shop.
+* **Hệ thống:** Google xác nhận bạn hợp lệ, nó gửi cho Supabase một cái mã (**Authorization Code**). Supabase đính kèm mã này vào đường link và đẩy trình duyệt của bạn quay về lại FPT Shop.
+
+#### **Bước 5: Đổi mã lấy "Chìa khóa"** *(Giữa Client ↔ Auth)*
+* **Thực tế:** Bạn thấy màn hình FPT Shop đang xoay xoay chữ *"Đang xử lý đăng nhập..."*.
+* **Hệ thống:** Ở dưới ngầm, FPT Shop lấy Mã xác nhận (Code) vừa nhận được, gọi API đến Supabase để đổi lấy một **Access Token** (Chìa khóa truy cập). Bước trao đổi ngầm này giúp hacker không lấy cắp được token thông qua trình duyệt.
+
+#### **Bước 6: Lấy thông tin** *(Từ Client -> Google)*
+* **Thực tế:** FPT Shop hiện dòng chữ *"Chào mừng Nguyễn Văn A"*, kèm theo avatar Google của bạn. Quá trình đăng nhập hoàn tất.
+* **Hệ thống:** Khi đã cầm Access Token, FPT Shop (thông qua Supabase) có quyền gọi các API của Google để lấy thông tin hồ sơ (Tên, Email, Avatar...) theo đúng những gì bạn đã cho phép.
