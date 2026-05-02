@@ -114,3 +114,43 @@ Ví dụ thực tế: **Bạn (User)** đang muốn đăng nhập vào **FPT Sho
 #### **Bước 6: Lấy thông tin** *(Từ Client -> Google)*
 * **Thực tế:** FPT Shop hiện dòng chữ *"Chào mừng Nguyễn Văn A"*, kèm theo avatar Google của bạn. Quá trình đăng nhập hoàn tất.
 * **Hệ thống:** Khi đã cầm Access Token, FPT Shop (thông qua Supabase) có quyền gọi các API của Google để lấy thông tin hồ sơ (Tên, Email, Avatar...) theo đúng những gì bạn đã cho phép.
+
+---
+
+# OAuth2 và OpenIdConnect
+
+## 1. Các khái niệm cơ bản
+- **Authentication vs Authorization:** Mặc dù về mặt lý thuyết đây là 2 thao tác hoàn toàn độc lập (Authentication là để xác minh bạn là ai, Authorization là để xác định quyền của bạn), nhưng trong ngữ cảnh bài này, chúng gắn liền mật thiết với nhau.
+- **OAuth2:** Phiên bản Open Authorization 1 hiện tại hầu như không còn được sử dụng trong thực tế, vì vậy khi nhắc đến thuật ngữ OAuth, người ta mặc định hiểu là **OAuth2**.
+- **OpenID Connect (OIDC):** Là một giao thức được xây dựng dựa trên nền tảng của OAuth2, bổ sung thêm các phần liên quan đến `ID Token`.
+
+## 2. Mô hình hoạt động của OAuth2
+OAuth2 thường được sử dụng trong ngữ cảnh bạn muốn cấp quyền cho một bên thứ ba (Client) sử dụng tài nguyên của mình, mà không muốn để lộ thông tin đăng nhập (như username/password) cho ứng dụng đó.
+*Ví dụ:* Cảnh bạn cấp quyền cho Duolingo đăng một status lên bảng tin Facebook cá nhân mà không cần đưa mật khẩu tài khoản Facebook cho Duolingo.
+
+Quy trình này luôn bao gồm 4 thành phần chính:
+1. **User:** Người dùng.
+2. **Client:** Ứng dụng bên thứ 3 (ví dụ: Duolingo).
+3. **Authorization Server:** Máy chủ xác thực quản lý và cấp quyền.
+4. **Resource Server:** Nơi lưu trữ tài nguyên hoặc API cần truy cập.
+
+## 3. Sự khác biệt giữa OAuth2 và OpenID Connect
+- Nếu chỉ sử dụng OAuth2, Client nhận được một quyền thao tác giới hạn trên một tài nguyên nhất định dựa trên ID của User.
+- Tuy nhiên, nếu muốn thực hiện tính năng **Đăng nhập** (Single Sign-On - ví dụ: "Đăng nhập bằng Google/Facebook") và lấy thêm thông tin mở rộng (tên, email...), hệ thống cần trả thêm một Token mở rộng gọi là `ID Token`. Việc định nghĩa và tiêu chuẩn hóa `ID Token` chính là vai trò của **OpenID Connect**.
+
+## 4. Cấu trúc ứng dụng Demo
+Để minh họa, chúng ta xây dựng một project ASP.NET chứa 3 phần độc lập:
+1. **Authorization Server:** Một ứng dụng web cung cấp chức năng xác thực và cấp phát Token theo chuẩn OpenID Connect.
+2. **Client:** Ứng dụng web đóng vai trò yêu cầu Authorization Server xác thực và sử dụng `Access Token` xin được để kết nối với API.
+3. **Resource Server:** Ứng dụng chứa API, yêu cầu phải cung cấp `Access Token` hợp lệ trong header (thông qua `Bearer`) thì mới được phép lấy dữ liệu.
+
+## 5. Chữ ký số và Xác thực Token (JWT)
+- Các Token được sử dụng là JSON Web Token (JWT). Để xác thực một JWT, có thể dùng khóa đối xứng hoặc cặp khóa bất đối xứng (Public Key và Private Key).
+- Trong demo, Authorization Server sử dụng **Private Key** (khóa bí mật) để mã hóa và tạo chữ ký cho Token.
+- Resource Server sẽ sử dụng **Public Key** (khóa công khai) để giải mã và kiểm tra. Nếu quá trình giải mã thành công, Resource Server có thể tin tưởng 100% rằng Token này do chính Authorization Server cấp phát và không bị giả mạo.
+
+## 6. Các luồng (Flows) trao đổi Token
+Có 3 flow chính:
+1. **Code Flow:** Đây là luồng bảo mật cao nhất, thường gặp khi đăng nhập bằng Google/Facebook. Authorization Server không trả thẳng Token về client qua URL trên trình duyệt web, mà chỉ gửi về một mã `code`. Sau đó, Client tạo một kênh kết nối ngầm (back-channel) để gửi mã `code` lên server đổi lấy `Access Token` và `Refresh Token`.
+2. **Implicit Flow:** Lược bỏ bước tạo kênh ẩn (back-channel), Token được trả trực tiếp về qua connection ban đầu. Luồng này thường áp dụng cho những môi trường mà Client có mức độ tin tưởng cao.
+3. **Hybrid Flow:** Là sự kết hợp của hai luồng trên, hệ thống trả về cả `code` và một số `Token` ngay lập tức để ứng dụng có thể sử dụng linh hoạt tùy tình huống.
